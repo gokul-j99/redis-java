@@ -51,6 +51,13 @@ public class Main {
                 if (line.toLowerCase().contains("ping")) {
                     clientSocket.getOutputStream().write("+PONG\r\n".getBytes());
                 }
+                else if (line.equalsIgnoreCase("ECHO")) {
+                    reader.readLine();
+                    String message = reader.readLine();
+                    clientSocket.getOutputStream().write(
+                            String.format("$%d\r\n%s\r\n", message.length(), message)
+                                    .getBytes());
+                }
                 if (line.isEmpty()) {
                     break;
                 }
