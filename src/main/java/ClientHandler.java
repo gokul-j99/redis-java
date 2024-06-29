@@ -41,14 +41,13 @@ class ClientHandler implements Runnable {
                         } else {
                             clientSocket.getOutputStream().write("$-1\r\n".getBytes());
                         }
+                    } else if (command.equals("ECHO")) {
+                        String message = args[1];
+                        clientSocket.getOutputStream().write(
+                                String.format("$%d\r\n%s\r\n", message.length(), message).getBytes());
                     }
                 } else if (line.toLowerCase().contains("ping")) {
                     clientSocket.getOutputStream().write("+PONG\r\n".getBytes());
-                } else if (line.equalsIgnoreCase("ECHO")) {
-                    reader.readLine(); // Read and ignore the length line
-                    String message = reader.readLine(); // Read the actual message
-                    clientSocket.getOutputStream().write(
-                            String.format("$%d\r\n%s\r\n", message.length(), message).getBytes());
                 }
 
                 if (line.isEmpty()) {
