@@ -5,8 +5,9 @@ import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
 
 class ClientHandler implements Runnable {
-    private final Socket clientSocket;
-    private static ConcurrentHashMap<String, String> setDict = new ConcurrentHashMap<>();
+    private Socket clientSocket;
+    private static ConcurrentHashMap<String, String> setDict =
+            new ConcurrentHashMap<>();
 
     public ClientHandler(Socket clientSocket) {
         this.clientSocket = clientSocket;
@@ -18,33 +19,27 @@ class ClientHandler implements Runnable {
                 new InputStreamReader(clientSocket.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] tokens = line.split(" ");
-                String command = tokens[0].toUpperCase();
-
-                if (command.equals("PING")) {
+                if (line.toLowerCase().contains("ping")) {
                     clientSocket.getOutputStream().write("+PONG\r\n".getBytes());
-                } else if (command.equals("ECHO")) {
+                }
+                else if (line.equalsIgnoreCase("ECHO")) {
+                    reader.readLine();
                     String message = reader.readLine();
                     clientSocket.getOutputStream().write(
                             String.format("$%d\r\n%s\r\n", message.length(), message)
                                     .getBytes());
-                } else if (command.equals("SET")) {
-                    String key = tokens[1];
-                    String value = tokens[2];
-                    System.out.println(tokens);
-                    setDict.put(key, value);
-                    clientSocket.getOutputStream().write("+OK\r\n".getBytes());
-                } else if (command.equals("GET")) {
-                    String key = tokens[1];
-                    String value = setDict.get(key);
-                    if (value != null) {
-                        clientSocket.getOutputStream().write(
-                                String.format("$%d\r\n%s\r\n", value.length(), value).getBytes());
-                    } else {
-                        clientSocket.getOutputStream().write("$-1\r\n".getBytes());
-                    }
                 }
+                else if (line.equalsIgnoreCase("SET")) {
 
+                    String str = reader.readLine();
+                    System.out.println(str);
+                    setDict.put("","");
+                    clientSocket.getOutputStream().write("+OK\r\n".getBytes());
+                }
+                else if (line.equalsIgnoreCase("GET")) {
+
+
+                }
                 if (line.isEmpty()) {
                     break;
                 }
