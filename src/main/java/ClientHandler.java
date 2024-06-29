@@ -3,10 +3,15 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 class ClientHandler implements Runnable {
     private Socket clientSocket;
     private static ConcurrentHashMap<String, String> setDict = new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<String, Long> expiryDict = new ConcurrentHashMap<>();
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     public ClientHandler(Socket clientSocket) {
         this.clientSocket = clientSocket;
@@ -32,8 +37,23 @@ class ClientHandler implements Runnable {
                         String value = args[2];
                         setDict.put(key, value);
                         clientSocket.getOutputStream().write("+OK\r\n".getBytes());
+
+                        if (numArgs > 3 && args[3].equalsIgnoreCase("PX")) {
+                            long expiryTime = Long.parseLong(args[4]);
+                            long expiryTimestamp = System.currentTimeMillis() + expiryTime;
+                            expiryDict.put(key, expiryTimestamp);
+
+                            scheduler.schedule(() -> {
+                                setDict.remove(key);
+                                expiryDict.remove(key);
+                            }, expiryTime, TimeUnit.MILLISECONDS);
+                        }
                     } else if (command.equals("GET")) {
                         String key = args[1];
+                        if (expiryDict.containsKey(key) && expiryDict.get(key) < System.currentTimeMillis()) {
+                            setDict.remove(key);
+                            expiryDict.remove(key);
+                        }
                         String value = setDict.get(key);
                         if (value != null) {
                             clientSocket.getOutputStream().write(
