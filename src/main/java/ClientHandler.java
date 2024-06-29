@@ -45,9 +45,9 @@ class ClientHandler implements Runnable {
                         String message = args[1];
                         clientSocket.getOutputStream().write(
                                 String.format("$%d\r\n%s\r\n", message.length(), message).getBytes());
+                    } else if (command.equals("PING")) {
+                        clientSocket.getOutputStream().write("+PONG\r\n".getBytes());
                     }
-                } else if (line.toLowerCase().contains("ping")) {
-                    clientSocket.getOutputStream().write("+PONG\r\n".getBytes());
                 }
 
                 if (line.isEmpty()) {
