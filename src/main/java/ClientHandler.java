@@ -12,7 +12,7 @@ class ClientHandler implements Runnable {
     private static ConcurrentHashMap<String, String> setDict = new ConcurrentHashMap<>();
     private static ConcurrentHashMap<String, Long> expiryDict = new ConcurrentHashMap<>();
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    private static final String ROLE = "master"; // Current role of the server
+    public static String role = "master"; // Default role
 
     public ClientHandler(Socket clientSocket) {
         this.clientSocket = clientSocket;
@@ -69,9 +69,9 @@ class ClientHandler implements Runnable {
                     } else if (command.equals("PING")) {
                         clientSocket.getOutputStream().write("+PONG\r\n".getBytes());
                     } else if (command.equals("INFO") && numArgs > 1 && args[1].equalsIgnoreCase("replication")) {
-                        String response = "role:master\r\n";
+                        String response = "role:" + role + "\r\n";
                         clientSocket.getOutputStream().write(
-                                String.format("$%d\r\n%s\r\n", response.length(), response).getBytes());
+                                String.format("$%d\r\n%s", response.length(), response).getBytes());
                     }
                 }
 
