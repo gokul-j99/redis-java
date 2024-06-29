@@ -31,6 +31,7 @@ class ClientHandler implements Runnable {
                 } else if (command.equals("SET")) {
                     String key = tokens[1];
                     String value = tokens[2];
+                    System.out.println(tokens);
                     setDict.put(key, value);
                     clientSocket.getOutputStream().write("+OK\r\n".getBytes());
                 } else if (command.equals("GET")) {
