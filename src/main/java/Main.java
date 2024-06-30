@@ -20,6 +20,7 @@ public class Main {
         String role = "master";
 
         for (int i = 0; i < args.length; i++) {
+            System.out.println("*** " + args[i] + "***");
             if (args[i].equalsIgnoreCase("--port") && i + 1 < args.length) {
                 port = Integer.parseInt(args[i + 1]);
             } else if (args[i].equalsIgnoreCase("--replicaof") && i + 2 < args.length) {
