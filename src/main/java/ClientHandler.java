@@ -71,7 +71,7 @@ class ClientHandler implements Runnable {
                     } else if (command.equals("INFO") && numArgs > 1 && args[1].equalsIgnoreCase("replication")) {
                         String response = "role:" + role + "\r\n";
                         clientSocket.getOutputStream().write(
-                                String.format("$%d\r\n%s", response.length(), response).getBytes());
+                                String.format("$%d\r\n%s\r\n", response.length(), response).getBytes());
                     }
                 }
 
