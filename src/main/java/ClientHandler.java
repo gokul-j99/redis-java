@@ -1,96 +1,76 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-class ClientHandler implements Runnable {
-    private Socket clientSocket;
+public class ClientHandler {
     private static ConcurrentHashMap<String, String> setDict = new ConcurrentHashMap<>();
     private static ConcurrentHashMap<String, Long> expiryDict = new ConcurrentHashMap<>();
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    public static String role = "master"; // Default role
+    private static String role = "master";
 
-    public ClientHandler(Socket clientSocket) {
-        this.clientSocket = clientSocket;
+    public static void setRole(String newRole) {
+        role = newRole;
     }
 
-    @Override
-    public void run() {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(clientSocket.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith("*")) {
-                    int numArgs = Integer.parseInt(line.substring(1).trim());
-                    String[] args = new String[numArgs];
-                    for (int i = 0; i < numArgs; i++) {
-                        reader.readLine(); // Read and ignore the length line
-                        args[i] = reader.readLine(); // Read the actual argument
-                    }
-                    String command = args[0].toUpperCase();
+    public static String processRequest(String message) {
+        String[] lines = message.split("\r\n");
+        String command = lines[2].toUpperCase();
+        StringBuilder response = new StringBuilder();
 
-                    if (command.equals("SET")) {
-                        String key = args[1];
-                        String value = args[2];
-                        setDict.put(key, value);
-                        clientSocket.getOutputStream().write("+OK\r\n".getBytes());
+        switch (command) {
+            case "SET":
+                String key = lines[4];
+                String value = lines[6];
+                setDict.put(key, value);
+                response.append("+OK\r\n");
 
-                        if (numArgs > 3 && args[3].equalsIgnoreCase("PX")) {
-                            long expiryTime = Long.parseLong(args[4]);
-                            long expiryTimestamp = System.currentTimeMillis() + expiryTime;
-                            expiryDict.put(key, expiryTimestamp);
+                if (lines.length > 8 && lines[8].equalsIgnoreCase("PX")) {
+                    long expiryTime = Long.parseLong(lines[10]);
+                    long expiryTimestamp = System.currentTimeMillis() + expiryTime;
+                    expiryDict.put(key, expiryTimestamp);
 
-                            scheduler.schedule(() -> {
-                                setDict.remove(key);
-                                expiryDict.remove(key);
-                            }, expiryTime, TimeUnit.MILLISECONDS);
-                        }
-                    } else if (command.equals("GET")) {
-                        String key = args[1];
-                        if (expiryDict.containsKey(key) && expiryDict.get(key) < System.currentTimeMillis()) {
-                            setDict.remove(key);
-                            expiryDict.remove(key);
-                        }
-                        String value = setDict.get(key);
-                        if (value != null) {
-                            clientSocket.getOutputStream().write(
-                                    String.format("$%d\r\n%s\r\n", value.length(), value).getBytes());
-                        } else {
-                            clientSocket.getOutputStream().write("$-1\r\n".getBytes());
-                        }
-                    } else if (command.equals("ECHO")) {
-                        String message = args[1];
-                        clientSocket.getOutputStream().write(
-                                String.format("$%d\r\n%s\r\n", message.length(), message).getBytes());
-                    } else if (command.equals("PING")) {
-                        clientSocket.getOutputStream().write("+PONG\r\n".getBytes());
-                    } else if (command.equals("INFO") && numArgs > 1 && args[1].equalsIgnoreCase("replication")) {
-                        String response = "role:" + role + "\r\n";
-                        clientSocket.getOutputStream().write(
-                                String.format("$%d\r\n%s", response.length(), response).getBytes());
-                    }
+                    scheduler.schedule(() -> {
+                        setDict.remove(key);
+                        expiryDict.remove(key);
+                    }, expiryTime, TimeUnit.MILLISECONDS);
                 }
+                break;
 
-                if (line.isEmpty()) {
-                    break;
+            case "GET":
+                key = lines[4];
+                if (expiryDict.containsKey(key) && expiryDict.get(key) < System.currentTimeMillis()) {
+                    setDict.remove(key);
+                    expiryDict.remove(key);
                 }
-            }
-        } catch (IOException e) {
-            System.out.println("IOException while handling client: " + e.getMessage());
-        } finally {
-            try {
-                if (clientSocket != null) {
-                    clientSocket.close();
+                value = setDict.get(key);
+                if (value != null) {
+                    response.append(String.format("$%d\r\n%s\r\n", value.length(), value));
+                } else {
+                    response.append("$-1\r\n");
                 }
-            } catch (IOException e) {
-                System.out.println("IOException while closing client socket: " + e.getMessage());
-            }
+                break;
+
+            case "ECHO":
+                String messageContent = lines[4];
+                response.append(String.format("$%d\r\n%s\r\n", messageContent.length(), messageContent));
+                break;
+
+            case "PING":
+                response.append("+PONG\r\n");
+                break;
+
+            case "INFO":
+                if (lines.length > 4 && lines[4].equalsIgnoreCase("replication")) {
+                    String infoResponse = "role:" + role + "\r\n";
+                    response.append(String.format("$%d\r\n%s", infoResponse.length(), infoResponse));
+                }
+                break;
+
+            default:
+                response.append("-ERR unknown command\r\n");
+                break;
         }
+        return response.toString();
     }
 }
-
