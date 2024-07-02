@@ -87,6 +87,8 @@ class ClientHandler {
     private static ConcurrentHashMap<String, Long> expiryDict = new ConcurrentHashMap<>();
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private static String role = "master";
+    private static final String MASTER_REPLID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
+    private static final long MASTER_REPL_OFFSET = 0;
 
     public static void setRole(String newRole) {
         role = newRole;
@@ -141,8 +143,9 @@ class ClientHandler {
 
             case "INFO":
                 if (lines.length > 4 && lines[4].equalsIgnoreCase("replication")) {
-                    String infoResponse = "role:" + role + "\r\n";
-                    response.append(String.format("$%d\r\n%s\r\n", infoResponse.length(), infoResponse));
+                    String infoResponse = String.format("role:%s\r\nmaster_replid:%s\r\nmaster_repl_offset:%d\r\n",
+                            role, MASTER_REPLID, MASTER_REPL_OFFSET);
+                    response.append(String.format("$%d\r\n%s", infoResponse.length(), infoResponse));
                 }
                 break;
 
