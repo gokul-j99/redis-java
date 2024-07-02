@@ -18,14 +18,18 @@ public class Main {
 
         int port = 6379;
         String role = "master";
+        String masterHost = null;
+        int masterPort = 0;
 
         for (int i = 0; i < args.length; i++) {
             System.out.println("*** " + args[i] + " ***");
             if (args[i].equalsIgnoreCase("--port") && i + 1 < args.length) {
                 port = Integer.parseInt(args[i + 1]);
-            } else if (args[i].equalsIgnoreCase("--replicaof") && i + 1 < args.length) {
+            } else if (args[i].equalsIgnoreCase("--replicaof") && i + 2 < args.length) {
                 System.out.println("*** role " + args[i] + " ***");
                 role = "slave";
+                masterHost = args[i + 1];
+                masterPort = Integer.parseInt(args[i + 2]);
             }
         }
 
@@ -37,6 +41,11 @@ public class Main {
 
         System.out.println("***Server started on port " + port + "***");
         ClientHandler.setRole(role);
+
+        // If role is slave, connect to master and send PING
+        if ("slave".equals(role)) {
+            connectToMaster(masterHost, masterPort);
+        }
 
         while (true) {
             int conns = selector.select();
@@ -78,6 +87,21 @@ public class Main {
                 }
                 iterator.remove();
             }
+        }
+    }
+
+    private static void connectToMaster(String masterHost, int masterPort) {
+        try (SocketChannel masterChannel = SocketChannel.open(new InetSocketAddress(masterHost, masterPort))) {
+            masterChannel.configureBlocking(true);
+            System.out.println("Connected to master at " + masterHost + ":" + masterPort);
+
+            // Send PING command
+            String pingCommand = "*1\r\n$4\r\nPING\r\n";
+            ByteBuffer buffer = ByteBuffer.wrap(pingCommand.getBytes());
+            masterChannel.write(buffer);
+            System.out.println("Sent PING to master");
+        } catch (IOException e) {
+            System.out.println("IOException when connecting to master: " + e.getMessage());
         }
     }
 }
