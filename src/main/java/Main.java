@@ -1,10 +1,13 @@
-import java.io.IOException;
-import java.net.InetSocketAddress;
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.net.InetSocketAddress;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,8 +16,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
-    private static SocketChannel masterChannel = null;
-
     public static void main(String[] args) throws IOException {
         System.out.println("Logs from your program will appear here!");
 
@@ -44,9 +45,16 @@ public class Main {
         System.out.println("***Server started on port " + port + "***");
         ClientHandler.setRole(role);
 
-        // If role is slave, connect to master
+        // If role is slave, connect to master and send PING
         if ("slave".equals(role)) {
-            connectToMaster(masterHost, masterPort, selector);
+            try (Socket slaveSocket = new Socket(masterHost, masterPort)) {
+                OutputStream output = slaveSocket.getOutputStream();
+                String handShakeMsg = "*1\r\n$4\r\nPING\r\n";
+                output.write(handShakeMsg.getBytes(StandardCharsets.UTF_8));
+                System.out.println("Sent PING to master at " + masterHost + ":" + masterPort);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         while (true) {
@@ -86,48 +94,25 @@ public class Main {
                         buffer.flip();
                         clientChannel.write(buffer);
                     }
-                } else if (key.isConnectable()) {
-                    SocketChannel channel = (SocketChannel) key.channel();
-                    if (channel.finishConnect()) {
-                        key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-                        System.out.println("Connected to master: " + channel.getRemoteAddress());
-                    }
-                } else if (key.isWritable()) {
-                    SocketChannel channel = (SocketChannel) key.channel();
-                    if (channel == masterChannel) {
-                        // Send PING to master
-                        String pingCommand = "*1\r\n$4\r\nPING\r\n";
-                        ByteBuffer buffer = ByteBuffer.wrap(pingCommand.getBytes());
-                        channel.write(buffer);
-                        System.out.println("Sent PING to master");
-                        key.interestOps(SelectionKey.OP_READ); // After sending PING, only interested in reading responses
-                    }
                 }
                 iterator.remove();
             }
         }
     }
-
-    private static void connectToMaster(String masterHost, int masterPort, Selector selector) {
-        try {
-            masterChannel = SocketChannel.open();
-            masterChannel.configureBlocking(false);
-            masterChannel.connect(new InetSocketAddress(masterHost, masterPort));
-            masterChannel.register(selector, SelectionKey.OP_CONNECT);
-            System.out.println("Connecting to master at " + masterHost + ":" + masterPort);
-        } catch (IOException e) {
-            System.out.println("IOException when connecting to master: " + e.getMessage());
-        }
-    }
 }
 
-class ClientHandler {
+class ClientHandler implements Runnable {
+    private Socket clientSocket;
     private static ConcurrentHashMap<String, String> setDict = new ConcurrentHashMap<>();
     private static ConcurrentHashMap<String, Long> expiryDict = new ConcurrentHashMap<>();
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private static String role = "master";
     private static final String MASTER_REPLID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
     private static final long MASTER_REPL_OFFSET = 0;
+
+    public ClientHandler(Socket clientSocket) {
+        this.clientSocket = clientSocket;
+    }
 
     public static void setRole(String newRole) {
         role = newRole;
@@ -193,5 +178,27 @@ class ClientHandler {
                 break;
         }
         return response.toString();
+    }
+
+    @Override
+    public void run() {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String response = processRequest(line);
+                PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
+                writer.println(response);
+            }
+        } catch (IOException e) {
+            System.out.println("IOException while handling client: " + e.getMessage());
+        } finally {
+            try {
+                if (clientSocket != null) {
+                    clientSocket.close();
+                }
+            } catch (IOException e) {
+                System.out.println("IOException while closing client socket: " + e.getMessage());
+            }
+        }
     }
 }
