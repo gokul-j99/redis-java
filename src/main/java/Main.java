@@ -13,6 +13,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
+    private static SocketChannel masterChannel = null;
+
     public static void main(String[] args) throws IOException {
         System.out.println("Logs from your program will appear here!");
 
@@ -42,9 +44,9 @@ public class Main {
         System.out.println("***Server started on port " + port + "***");
         ClientHandler.setRole(role);
 
-        // If role is slave, connect to master and send PING
+        // If role is slave, connect to master
         if ("slave".equals(role)) {
-            connectToMaster(masterHost, masterPort);
+            connectToMaster(masterHost, masterPort, selector);
         }
 
         while (true) {
@@ -84,22 +86,35 @@ public class Main {
                         buffer.flip();
                         clientChannel.write(buffer);
                     }
+                } else if (key.isConnectable()) {
+                    SocketChannel channel = (SocketChannel) key.channel();
+                    if (channel.finishConnect()) {
+                        key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+                        System.out.println("Connected to master: " + channel.getRemoteAddress());
+                    }
+                } else if (key.isWritable()) {
+                    SocketChannel channel = (SocketChannel) key.channel();
+                    if (channel == masterChannel) {
+                        // Send PING to master
+                        String pingCommand = "*1\r\n$4\r\nPING\r\n";
+                        ByteBuffer buffer = ByteBuffer.wrap(pingCommand.getBytes());
+                        channel.write(buffer);
+                        System.out.println("Sent PING to master");
+                        key.interestOps(SelectionKey.OP_READ); // After sending PING, only interested in reading responses
+                    }
                 }
                 iterator.remove();
             }
         }
     }
 
-    private static void connectToMaster(String masterHost, int masterPort) {
-        try (SocketChannel masterChannel = SocketChannel.open(new InetSocketAddress(masterHost, masterPort))) {
-            masterChannel.configureBlocking(true);
-            System.out.println("Connected to master at " + masterHost + ":" + masterPort);
-
-            // Send PING command
-            String pingCommand = "*1\r\n$4\r\nPING\r\n";
-            ByteBuffer buffer = ByteBuffer.wrap(pingCommand.getBytes());
-            masterChannel.write(buffer);
-            System.out.println("Sent PING to master");
+    private static void connectToMaster(String masterHost, int masterPort, Selector selector) {
+        try {
+            masterChannel = SocketChannel.open();
+            masterChannel.configureBlocking(false);
+            masterChannel.connect(new InetSocketAddress(masterHost, masterPort));
+            masterChannel.register(selector, SelectionKey.OP_CONNECT);
+            System.out.println("Connecting to master at " + masterHost + ":" + masterPort);
         } catch (IOException e) {
             System.out.println("IOException when connecting to master: " + e.getMessage());
         }
