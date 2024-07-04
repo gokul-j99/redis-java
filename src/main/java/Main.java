@@ -29,6 +29,9 @@ public class Main {
         RedisServerRole role = DEFAULT_ROLE;
         if (commandLine.hasOption("replicaof")) {
             String[] replicaArgsArray = commandLine.getOptionValues("replicaof");
+            if (replicaArgsArray.length != 2) {
+                throw new MissingArgumentException("Missing argument for option: replicaof");
+            }
             String hostname = replicaArgsArray[0];
             int masterPortNumber = Integer.parseInt(replicaArgsArray[1]);
             System.out.println("Replicating from master, master host is: " +
@@ -45,6 +48,7 @@ public class Main {
 
         System.out.println("***Server started on port " + portNumber + "***");
         ClientHandler.setRole(role.toString());
+        ClientHandler.setDatastore(datastore);
 
         while (true) {
             int conns = selector.select();
@@ -142,8 +146,7 @@ public class Main {
 
 class ClientHandler implements Runnable {
     private Socket clientSocket;
-    private static ConcurrentHashMap<String, String> setDict = new ConcurrentHashMap<>();
-    private static ConcurrentHashMap<String, Long> expiryDict = new ConcurrentHashMap<>();
+    private static RedisDatastore datastore;
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private static String role = "master";
     private static final String MASTER_REPLID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
@@ -157,6 +160,10 @@ class ClientHandler implements Runnable {
         role = newRole;
     }
 
+    public static void setDatastore(RedisDatastore newDatastore) {
+        datastore = newDatastore;
+    }
+
     public static String processRequest(String message) {
         String[] lines = message.split("\r\n");
         String command = lines[2].toUpperCase();
@@ -166,29 +173,20 @@ class ClientHandler implements Runnable {
             case "SET":
                 String key = lines[4];
                 String value = lines[6];
-                setDict.put(key, value);
+                datastore.set(key, value);
                 response.append("+OK\r\n");
 
                 if (lines.length > 8 && lines[8].equalsIgnoreCase("PX")) {
                     long expiryTime = Long.parseLong(lines[10]);
-                    long expiryTimestamp = System.currentTimeMillis() + expiryTime;
-                    expiryDict.put(key, expiryTimestamp);
-
-                    scheduler.schedule(() -> {
-                        setDict.remove(key);
-                        expiryDict.remove(key);
-                    }, expiryTime, TimeUnit.MILLISECONDS);
+                    datastore.set(key, value, expiryTime);
                 }
                 break;
 
             case "GET":
                 key = lines[4];
-                if (expiryDict.containsKey(key) && expiryDict.get(key) < System.currentTimeMillis()) {
-                    setDict.remove(key);
-                    expiryDict.remove(key);
-                }
-                value = setDict.get(key);
-                if (value != null) {
+                Optional<String> valueOpt = datastore.get(key);
+                if (valueOpt.isPresent()) {
+                    value = valueOpt.get();
                     response.append(String.format("$%d\r\n%s\r\n", value.length(), value));
                 } else {
                     response.append("$-1\r\n");
