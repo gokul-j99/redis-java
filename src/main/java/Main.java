@@ -1,58 +1,50 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.cli.*;
 
 public class Main {
+    private static final int DEFAULT_PORT = 6379;
+    private static final RedisServerRole DEFAULT_ROLE = RedisServerRole.MASTER;
     private static SocketChannel masterChannel = null;
 
-    public static void main(String[] args) throws IOException {
-        System.out.println("Logs from your program will appear here!");
-
-        int port = 6379;
-        String role = "master";
-        String masterHost = null;
-        int masterPort = 0;
-
-        for (int i = 0; i < args.length; i++) {
-            System.out.println("*** " + args[i] + " ***");
-            if (args[i].equalsIgnoreCase("--port") && i + 1 < args.length) {
-                port = Integer.parseInt(args[i + 1]);
-            } else if (args[i].equalsIgnoreCase("--replicaof") && i + 2 < args.length) {
-                System.out.println("*** role " + args[i] + " ***");
-                role = "slave";
-                masterHost = args[i + 1];
-                masterPort = Integer.parseInt(args[i + 2]);
-            }
+    public static void main(String[] args) throws IOException, ParseException {
+        CommandLine commandLine = parsePortFromCommandLineArgs(args);
+        int portNumber = DEFAULT_PORT;
+        if (commandLine.hasOption("port")) {
+            portNumber = Integer.parseInt(commandLine.getOptionValue("port"));
         }
-
+        System.out.println("Port number is: " + portNumber);
+        RedisServerRole role = DEFAULT_ROLE;
+        if (commandLine.hasOption("replicaof")) {
+            String[] replicaArgsArray = commandLine.getOptionValues("replicaof");
+            String hostname = replicaArgsArray[0];
+            int masterPortNumber = Integer.parseInt(replicaArgsArray[1]);
+            System.out.println("Replicating from master, master host is: " +
+                    hostname + ", port number is: " + masterPortNumber);
+            role = RedisServerRole.SLAVE;
+            connectToMaster(hostname, masterPortNumber);
+        }
+        RedisDatastore datastore = new RedisDatastore();
         Selector selector = Selector.open();
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-        serverSocketChannel.bind(new InetSocketAddress("localhost", port));
+        serverSocketChannel.bind(new InetSocketAddress("localhost", portNumber));
         serverSocketChannel.configureBlocking(false);
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
-        System.out.println("***Server started on port " + port + "***");
-        ClientHandler.setRole(role);
-
-        // If role is slave, connect to master
-        if ("slave".equals(role)) {
-            connectToMaster(masterHost, masterPort, selector);
-        }
+        System.out.println("***Server started on port " + portNumber + "***");
+        ClientHandler.setRole(role.toString());
 
         while (true) {
             int conns = selector.select();
@@ -113,16 +105,38 @@ public class Main {
         }
     }
 
-    private static void connectToMaster(String masterHost, int masterPort, Selector selector) {
+    private static void connectToMaster(String hostname, int masterPortNumber) throws IOException {
         try {
             masterChannel = SocketChannel.open();
             masterChannel.configureBlocking(false);
-            masterChannel.connect(new InetSocketAddress(masterHost, masterPort));
-            masterChannel.register(selector, SelectionKey.OP_CONNECT);
-            System.out.println("Connecting to master at " + masterHost + ":" + masterPort);
+            masterChannel.connect(new InetSocketAddress(hostname, masterPortNumber));
+            System.out.println("Connecting to master at " + hostname + ":" + masterPortNumber);
         } catch (IOException e) {
             System.out.println("IOException when connecting to master: " + e.getMessage());
         }
+    }
+
+    private static CommandLine parsePortFromCommandLineArgs(String[] args) throws ParseException {
+        CommandLine commandLine;
+        Options options = new Options();
+        Option portOption = Option.builder()
+                .required(false)
+                .desc("port to run redis on")
+                .longOpt("port")
+                .hasArg(true)
+                .build();
+        options.addOption(portOption);
+        Option replicaOption = Option.builder()
+                .required(false)
+                .desc("Master port to replicate from")
+                .longOpt("replicaof")
+                .hasArg(true)
+                .numberOfArgs(2)
+                .build();
+        options.addOption(replicaOption);
+        CommandLineParser parser = new DefaultParser();
+        commandLine = parser.parse(options, args);
+        return commandLine;
     }
 }
 
@@ -228,3 +242,35 @@ class ClientHandler implements Runnable {
         }
     }
 }
+
+enum RedisServerRole {
+    MASTER,
+    SLAVE
+}
+
+
+class RedisDatastore {
+    private ConcurrentHashMap<String, String> store = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, Long> expiry = new ConcurrentHashMap<>();
+
+    public void set(String key, String value) {
+        store.put(key, value);
+        expiry.remove(key);
+    }
+
+    public void set(String key, String value, long milliseconds) {
+        store.put(key, value);
+        long expiryTime = System.currentTimeMillis() + milliseconds;
+        expiry.put(key, expiryTime);
+    }
+
+    public Optional<String> get(String key) {
+        if (expiry.containsKey(key) && System.currentTimeMillis() > expiry.get(key)) {
+            store.remove(key);
+            expiry.remove(key);
+            return Optional.empty();
+        }
+        return Optional.ofNullable(store.get(key));
+    }
+}
+
