@@ -30,7 +30,7 @@ public class GetCommand extends RedisCommand {
             LOGGER.info("Key '" + key + "' found with value: " + value);
             return EncodingUtils.createRedisResponse(value);
         } else {
-            LOGGER.info("Key '" + key + "' not found.");
+            LOGGER.info("Key '" + key + "' not found..");
             return "$-1\r\n";
         }
     }
