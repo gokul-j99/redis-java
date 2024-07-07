@@ -20,7 +20,7 @@ public class SetCommand extends RedisCommand {
         handler.server.numacks = 0;
         byte[] encodedCommand = EncodingUtils.encodeRedisProtocol(command);
         String commandString = new String(encodedCommand, StandardCharsets.UTF_8);
-
+        System.out.println("writing CMD " + "Before command" + " to writer: ");
         if (handler.socket != null && handler.socket.getPort() != handler.replicaPort) {
             for (BufferedWriter writer : handler.server.getWriters()) {
                 System.out.println("writing CMD " + command + " to writer: " + writer.toString());
