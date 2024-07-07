@@ -1,12 +1,13 @@
 package utils;
 
 import java.io.*;
-import java.net.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.*;
-import java.nio.charset.StandardCharsets;
 
 public class AsyncServer {
     private final String host;
@@ -37,6 +38,7 @@ public class AsyncServer {
         this.config.put("dir", dir);
         this.config.put("dbfilename", dbfilename);
 
+        Logger.getLogger(AsyncServer.class.getName()).info("Master server running on port: " + port);
         if (!dir.isEmpty() && !dbfilename.isEmpty()) {
             Path filePath = Paths.get(dir, dbfilename);
             parseRedisFile(filePath);
@@ -70,37 +72,33 @@ public class AsyncServer {
     }
 
     private void connectToReplicaServer(String replicaServer, int replicaPort) throws IOException {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(replicaServer, replicaPort), 5000); // 5 seconds timeout
-            socket.setSoTimeout(5000); // 5 seconds read timeout
+        try (Socket socket = new Socket(replicaServer, replicaPort);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
 
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-                 BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
-
-                String response = sendPing(reader, writer);
-                if (!"+PONG\r\n".equals(response.trim())) {
-                    throw new IOException("Failed to receive PONG from replica server. Received: " + response);
-                }
-
-                sendReplconfCommand(reader, writer, port);
-                sendAdditionalReplconfCommand(reader, writer);
-                sendPsyncCommand(reader, writer);
-                handleReplicaCommunication(reader, writer);
+            String response = sendPing(reader, writer);
+            if (!"+PONG\r\n".equals(response.trim())) {
+                throw new IOException("Failed to receive PONG from replica server. Received: " + response);
             }
+
+            sendReplconfCommand(reader, writer, port);
+            sendAdditionalReplconfCommand(reader, writer);
+            sendPsyncCommand(reader, writer);
+            handleReplicaCommunication(reader, writer);
         } catch (IOException e) {
             Logger.getLogger(AsyncServer.class.getName()).log(Level.SEVERE, "Error connecting to replica server", e);
             throw e;
         }
     }
 
-
     private void sendReplconfCommand(BufferedReader reader, BufferedWriter writer, int port) throws IOException {
         String replconfCommand = "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n" + port + "\r\n";
         writer.write(replconfCommand);
         writer.flush();
         String replconfResponse = reader.readLine();
-        if (!"+OK\r\n".equals(replconfResponse)) {
-            throw new IOException("Failed to receive +OK response from REPLCONF command");
+        Logger.getLogger(AsyncServer.class.getName()).info("REPLCONF listening-port response: " + replconfResponse);
+        if (!"+OK".equals(replconfResponse.trim())) {
+            throw new IOException("Failed to receive +OK response from REPLCONF command. Received: " + replconfResponse);
         }
     }
 
@@ -109,8 +107,9 @@ public class AsyncServer {
         writer.write(replconfCommandAdditional);
         writer.flush();
         String replconfResponseAdditional = reader.readLine();
-        if (!"+OK\r\n".equals(replconfResponseAdditional)) {
-            throw new IOException("Failed to receive +OK response from additional REPLCONF command");
+        Logger.getLogger(AsyncServer.class.getName()).info("REPLCONF capa response: " + replconfResponseAdditional);
+        if (!"+OK".equals(replconfResponseAdditional.trim())) {
+            throw new IOException("Failed to receive +OK response from additional REPLCONF command. Received: " + replconfResponseAdditional);
         }
     }
 
@@ -126,7 +125,7 @@ public class AsyncServer {
         writer.flush();
         String response = reader.readLine();
         Logger.getLogger(AsyncServer.class.getName()).info("PING response: " + response);
-        return reader.readLine();
+        return response;
     }
 
     private void handleReplicaCommunication(BufferedReader reader, BufferedWriter writer) throws IOException {
@@ -199,6 +198,4 @@ public class AsyncServer {
     public Map<String, Map<Integer, Map<Integer, List<String>>>> getStreamstore() {
         return streamstore;
     }
-
-
 }
