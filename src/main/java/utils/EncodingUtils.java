@@ -14,7 +14,7 @@ public class EncodingUtils {
 
     public static String createRedisResponse(Object response) {
         if (response == null) {
-            return EMPTY_ARRAY_RESPONSE;
+            return "$-1\r\n";
         } else if (response instanceof String) {
             String strResponse = (String) response;
             if (strResponse.equals("OK")) {
@@ -214,7 +214,7 @@ public class EncodingUtils {
             encodedData.append("$").append(element.length()).append("\r\n").append(element).append("\r\n");
         }
 
-        return encodedData.toString().getBytes(StandardCharsets.UTF_8);
+        return encodedData.toString().getBytes();
     }
 
 
