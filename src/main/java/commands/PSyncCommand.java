@@ -1,6 +1,7 @@
 package commands;
 
 import utils.AsyncRequestHandler;
+
 import java.util.List;
 
 public class PSyncCommand extends RedisCommand {
@@ -18,12 +19,15 @@ public class PSyncCommand extends RedisCommand {
         // Write response to the client
         handler.getWriter().write(response);
         handler.getWriter().write(header);
-        handler.getWriter().write(String.valueOf(binaryData));
-        handler.getWriter().flush();
+        handler.getWriter().flush();  // Flush character data
+
+        // Write binary data directly
+        handler.getWriter().write(new String(binaryData, "ISO-8859-1"));
+        handler.getWriter().flush();  // Flush binary data
 
         handler.server.numacks += 1;
 
-        return ""; // Returning an nempty string to indicate no further response is needed
+        return ""; // Returning an empty string to indicate no further response is needed
     }
 
     private static byte[] hexStringToByteArray(String s) {
