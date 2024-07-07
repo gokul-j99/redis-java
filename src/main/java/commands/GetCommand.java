@@ -15,11 +15,14 @@ public class GetCommand extends RedisCommand {
         Long expiration = handler.expiration.get(key);
 
         // Check if the key exists and if it has not expired
-        if (expiration != null && expiration < System.currentTimeMillis() / 1000) {
-            handler.memory.remove(key);
-            handler.expiration.remove(key);
-            LOGGER.info("Key '" + key + "' expired and removed from memory.");
-            return "$-1\r\n";
+        if (expiration != null) {
+            long currentTime = System.currentTimeMillis() / 1000;
+            if (expiration < currentTime) {
+                handler.memory.remove(key);
+                handler.expiration.remove(key);
+                LOGGER.info("Key '" + key + "' expired at " + expiration + " (current time: " + currentTime + ") and removed from memory.");
+                return "$-1\r\n";
+            }
         }
 
         String value = handler.memory.get(key);
