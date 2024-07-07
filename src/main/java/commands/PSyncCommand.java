@@ -23,7 +23,7 @@ public class PSyncCommand extends RedisCommand {
 
         handler.server.numacks += 1;
 
-        return ""; // Returning an empty string to indicate no further response is needed
+        return ""; // Returning an nempty string to indicate no further response is needed
     }
 
     private static byte[] hexStringToByteArray(String s) {
