@@ -12,8 +12,8 @@ public class SetCommand extends RedisCommand {
     public String execute(AsyncRequestHandler handler, List<String> command) throws Exception {
         handler.memory.put(command.get(1), command.get(2));
         if (command.size() > 4 && "PX".equalsIgnoreCase(command.get(3)) && command.get(4).matches("\\d+")) {
-            long expirationDuration = Long.parseLong(command.get(4)) / 1000; // Convert milliseconds to seconds
-            handler.expiration.put(command.get(1), System.currentTimeMillis() / 1000 + expirationDuration);
+            long expirationDuration = Long.parseLong(command.get(4)); // Keep as milliseconds
+            handler.expiration.put(command.get(1), System.currentTimeMillis() + expirationDuration);
         } else {
             handler.expiration.put(command.get(1), null);
         }

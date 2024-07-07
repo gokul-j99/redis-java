@@ -16,7 +16,7 @@ public class GetCommand extends RedisCommand {
 
         // Check if the key exists and if it has not expired
         if (expiration != null) {
-            long currentTime = System.currentTimeMillis() / 1000;
+            long currentTime = System.currentTimeMillis();
             if (expiration < currentTime) {
                 handler.memory.remove(key);
                 handler.expiration.remove(key);
