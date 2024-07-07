@@ -125,6 +125,7 @@ public class AsyncServer {
                     processMasterCommand(line, reader);
                 }
             }
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -230,7 +231,7 @@ public class AsyncServer {
             byte[] versionBytes = new byte[4];
             dis.readFully(versionBytes);
             int version = Integer.parseInt(new String(versionBytes));
-            if (version < 1 || version > 9) {
+            if (version < 1 || version > 11) { // Updated to support version up to 11
                 throw new IOException("Unsupported RDB file version: " + version);
             }
 
