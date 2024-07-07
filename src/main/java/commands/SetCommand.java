@@ -10,6 +10,7 @@ import java.util.List;
 public class SetCommand extends RedisCommand {
     @Override
     public String execute(AsyncRequestHandler handler, List<String> command) throws Exception {
+        System.out.println("Executing SET command: " + command);
         handler.memory.put(command.get(1), command.get(2));
         if (command.size() > 4 && "PX".equalsIgnoreCase(command.get(3)) && command.get(4).matches("\\d+")) {
             long expirationDuration = Long.parseLong(command.get(4)) / 1000; // Convert milliseconds to seconds
@@ -24,13 +25,11 @@ public class SetCommand extends RedisCommand {
 
         if (handler.socket != null && handler.socket.getPort() != handler.replicaPort) {
             for (BufferedWriter writer : handler.server.getWriters()) {
-                System.out.println("writing CMD " + command + " to writer: " + writer.toString());
                 writer.write(commandString);
                 writer.flush();
             }
             return "+OK\r\n";
         } else {
-            System.out.println("Received command from master: " + command);
             return null; // No response for commands from the master
         }
     }

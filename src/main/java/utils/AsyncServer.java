@@ -130,7 +130,7 @@ public class AsyncServer {
     }
 
     private void processMasterCommand(String commandLine, BufferedReader reader) throws Exception {
-        System.out.println("Received command from master un encode: " + commandLine);
+        System.out.println("Received command from master: " + commandLine);
         List<List<String>> commandList = EncodingUtils.parseRedisProtocol(commandLine.getBytes(StandardCharsets.UTF_8));
         for (List<String> command : commandList) {
             System.out.println("Processing command from master: " + command);
@@ -138,6 +138,7 @@ public class AsyncServer {
             commandClass.execute(new AsyncRequestHandler(null, this), command);
         }
     }
+
 
 
     private void processRDBData(String rdbData) throws IOException {
@@ -149,6 +150,7 @@ public class AsyncServer {
         parseRedisFile(tempFile);
         Files.delete(tempFile);
     }
+
 
 
     private void sendReplconfCommand(BufferedReader reader, BufferedWriter writer, int port) throws IOException {
