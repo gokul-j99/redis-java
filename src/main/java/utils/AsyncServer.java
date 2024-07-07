@@ -213,7 +213,6 @@ public class AsyncServer {
         }
         return encodedData.toString();
     }
-
     private Map<String, String> parseRedisFile(Path filePath) throws IOException {
         Map<String, String> memory = new HashMap<>();
         Map<String, Long> expiration = new HashMap<>();
@@ -236,7 +235,13 @@ public class AsyncServer {
             }
 
             while (true) {
-                int type = dis.readByte();
+                int type;
+                try {
+                    type = dis.readByte();
+                } catch (EOFException e) {
+                    break; // End of file reached
+                }
+
                 if (type == (byte) 0xFF) { // End of file marker
                     break;
                 }
@@ -261,21 +266,28 @@ public class AsyncServer {
                         break;
                     case (byte) 0x01: // List of strings
                         // Implement parsing for list of strings if needed
+                        skipObject(dis);
                         break;
                     case (byte) 0x02: // Set of strings
                         // Implement parsing for set of strings if needed
+                        skipObject(dis);
                         break;
                     case (byte) 0x03: // Sorted set
                         // Implement parsing for sorted set if needed
+                        skipObject(dis);
                         break;
                     case (byte) 0x04: // Hash table
                         // Implement parsing for hash table if needed
+                        skipObject(dis);
                         break;
                     default: // Unsupported or unknown type
                         skipObject(dis);
                         break;
                 }
             }
+        } catch (EOFException e) {
+            // Handle end of file gracefully
+            System.err.println("Reached end of RDB file unexpectedly");
         }
         this.memory.putAll(memory);
         this.expiration.putAll(expiration);
