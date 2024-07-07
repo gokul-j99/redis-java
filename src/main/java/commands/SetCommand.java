@@ -18,11 +18,10 @@ public class SetCommand extends RedisCommand {
             handler.expiration.put(command.get(1), null);
         }
         handler.server.numacks = 0;
-        System.out.println("writing CMD " + "Before encode" + " to writer: ");
-        System.out.println("writing CMD " + "Before encode" + " to writer: ");
+
         byte[] encodedCommand = EncodingUtils.encodeRedisProtocol(command);
         String commandString = new String(encodedCommand, StandardCharsets.UTF_8);
-        System.out.println("writing CMD " + "Before command" + " to writer: ");
+
         if (handler.socket != null && handler.socket.getPort() != handler.replicaPort) {
             for (BufferedWriter writer : handler.server.getWriters()) {
                 System.out.println("writing CMD " + command + " to writer: " + writer.toString());
@@ -31,6 +30,7 @@ public class SetCommand extends RedisCommand {
             }
             return "+OK\r\n";
         } else {
+            System.out.println("Received command from master: " + command);
             return null; // No response for commands from the master
         }
     }
