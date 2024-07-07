@@ -1,9 +1,10 @@
 package utils;
 
+import commands.*;
 import java.io.*;
 import java.net.*;
-import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.*;
@@ -22,6 +23,7 @@ public class AsyncServer {
 
     private ServerSocket serverSocket;
     private ExecutorService executor;
+    public final Map<String, RedisCommand> commandMap;
 
     public AsyncServer(String host, int port, String replicaServer, int replicaPort, String dir, String dbfilename) throws IOException {
         this.host = host;
@@ -36,11 +38,36 @@ public class AsyncServer {
         this.config = new HashMap<>();
         this.config.put("dir", dir);
         this.config.put("dbfilename", dbfilename);
+        this.commandMap = initializeCommandMap();
 
         if (!dir.isEmpty() && !dbfilename.isEmpty()) {
             Path filePath = Paths.get(dir, dbfilename);
             parseRedisFile(filePath);
         }
+    }
+
+    private Map<String, RedisCommand> initializeCommandMap() {
+        Map<String, RedisCommand> map = new HashMap<>();
+        map.put("PING", new PingCommand());
+        map.put("ECHO", new EchoCommand());
+        map.put("SET", new SetCommand());
+        map.put("GET", new GetCommand());
+        map.put("INFO", new InfoCommand());
+        map.put("REPLCONF", new ReplConfCommand());
+        map.put("PSYNC", new PSyncCommand());
+        map.put("WAIT", new WaitCommand());
+        map.put("CONFIG", new ConfigCommand());
+        map.put("KEYS", new KeysCommand());
+        map.put("TYPE", new TypeCommand());
+        map.put("XADD", new XAddCommand());
+        map.put("XRANGE", new XRangeCommand());
+        map.put("XREAD", new XReadCommand());
+        map.put("INCR", new IncrCommand());
+        map.put("INCRBY", new IncrByCommand());
+        map.put("EXEC", new ExecCommand());
+        map.put("MULTI", new MultiCommand());
+        map.put("DISCARD", new DiscardCommand());
+        return map;
     }
 
     public static AsyncServer create(String host, int port, String replicaServer, int replicaPort, String dir, String dbfilename) throws IOException {
@@ -74,14 +101,39 @@ public class AsyncServer {
              BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
 
             String response = sendPing(reader, writer);
-            if (!"+PONG".equals(response)) {
+            if (!response.equals("+PONG")) {
                 throw new IOException("Failed to receive PONG from replica server. Received: " + response);
             }
 
             sendReplconfCommand(reader, writer, port);
             sendAdditionalReplconfCommand(reader, writer);
             sendPsyncCommand(reader, writer);
-            handleReplicaCommunication(reader, writer);
+
+            while (true) {
+                String line = reader.readLine();
+                if (line == null) {
+                    break;
+                }
+                if (line.startsWith("$")) {
+                    int length = Integer.parseInt(line.substring(1));
+                    char[] buffer = new char[length];
+                    reader.read(buffer, 0, length);
+                    String rdbData = new String(buffer);
+                    // Process RDB data as needed
+                } else {
+                    processMasterCommand(line, reader);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void processMasterCommand(String commandLine, BufferedReader reader) throws Exception {
+        List<List<String>> commandList = EncodingUtils.parseRedisProtocol(commandLine.getBytes(StandardCharsets.UTF_8));
+        for (List<String> command : commandList) {
+            RedisCommand commandClass = commandMap.getOrDefault(command.get(0).toUpperCase(), new UnknownCommand());
+            commandClass.execute(new AsyncRequestHandler(null, this), command);
         }
     }
 
@@ -185,6 +237,7 @@ public class AsyncServer {
     public void incrementNumAcks() {
         numacks++;
     }
+
     public Map<String, Map<Integer, Map<Integer, List<String>>>> getStreamstore() {
         return streamstore;
     }

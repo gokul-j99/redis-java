@@ -9,7 +9,7 @@ import java.util.logging.*;
 import commands.*;
 
 public class AsyncRequestHandler implements Runnable {
-    private final Socket socket;
+    public final Socket socket;
     public final AsyncServer server;
     public final BufferedReader reader;
     public final BufferedWriter writer;
