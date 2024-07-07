@@ -130,14 +130,4 @@ public class RedisParser {
         return Map.of("hashMap", hashMap, "expiryTimes", expiryTimes);
     }
 
-    public static void main(String[] args) {
-        String filePath = "path/to/redis/file.rdb";
-        Map<String, Map<String, ? extends Object>> parsedData = parseRedisFile(filePath);
-        Map<String, String> hashMap = (Map<String, String>) parsedData.get("hashMap");
-        Map<String, Double> expiryTimes = (Map<String, Double>) parsedData.get("expiryTimes");
-
-        // Print the parsed data
-        hashMap.forEach((key, value) -> System.out.println("Key: " + key + ", Value: " + value));
-        expiryTimes.forEach((key, expiryTime) -> System.out.println("Key: " + key + ", Expiry Time: " + expiryTime));
-    }
 }

@@ -8,6 +8,7 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.*;
+import java.util.zip.GZIPInputStream;
 
 public class AsyncServer {
     private final String host;
@@ -16,7 +17,7 @@ public class AsyncServer {
     private final int replicaPort;
     private final Map<String, String> memory;
     private final Map<String, Long> expiration;
-    public final Map<String, Map<Integer, Map<Integer, List<String>>>>  streamstore;
+    public final Map<String, Map<Integer, Map<Integer, List<String>>>> streamstore;
     public final List<BufferedWriter> writers;
     public int numacks;
     public final Map<String, String> config;
@@ -77,7 +78,7 @@ public class AsyncServer {
              BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
 
             String response = sendPing(reader, writer);
-            if (!"+PONG\r\n".equals(response.trim())) {
+            if (!response.trim().equals("+PONG")) {
                 throw new IOException("Failed to receive PONG from replica server. Received: " + response);
             }
 
@@ -159,9 +160,60 @@ public class AsyncServer {
     }
 
     private Map<String, String> parseRedisFile(Path filePath) throws IOException {
-        // Implement the parse_redis_file method to read the Redis RDB file and populate the memory and expiration maps
-        // This is a placeholder method
-        return new HashMap<>();
+        Map<String, String> hashMap = new HashMap<>();
+        Map<String, Long> expirationMap = new HashMap<>();
+        try (DataInputStream dis = new DataInputStream(new GZIPInputStream(new FileInputStream(filePath.toFile())))) {
+            byte[] buffer = new byte[5];
+            dis.readFully(buffer); // Read "REDIS" magic string
+            dis.readInt(); // Read RDB version
+
+            while (dis.available() > 0) {
+                int dataType = dis.readUnsignedByte();
+                switch (dataType) {
+                    case 0x00: // String
+                        String key = readString(dis);
+                        String value = readString(dis);
+                        hashMap.put(key, value);
+                        break;
+                    case 0xFD: // Expired key (seconds)
+                        long expireTimeSeconds = dis.readInt();
+                        dataType = dis.readUnsignedByte();
+                        key = readString(dis);
+                        value = readString(dis);
+                        hashMap.put(key, value);
+                        expirationMap.put(key, expireTimeSeconds * 1000);
+                        break;
+                    case 0xFC: // Expired key (milliseconds)
+                        long expireTimeMilliseconds = dis.readLong();
+                        dataType = dis.readUnsignedByte();
+                        key = readString(dis);
+                        value = readString(dis);
+                        hashMap.put(key, value);
+                        expirationMap.put(key, expireTimeMilliseconds);
+                        break;
+                    case 0xFE: // Select DB
+                        int dbIndex = dis.readUnsignedByte();
+                        break;
+                    case 0xFF: // End of file
+                        break;
+                    default:
+                        throw new IOException("Unsupported RDB data type: " + dataType);
+                }
+            }
+        } catch (IOException e) {
+            Logger.getLogger(AsyncServer.class.getName()).log(Level.SEVERE, "Error parsing RDB file", e);
+            throw e;
+        }
+        this.memory.putAll(hashMap);
+        this.expiration.putAll(expirationMap);
+        return hashMap;
+    }
+
+    private String readString(DataInputStream dis) throws IOException {
+        int length = dis.readInt();
+        byte[] buffer = new byte[length];
+        dis.readFully(buffer);
+        return new String(buffer, StandardCharsets.UTF_8);
     }
 
     public Map<String, String> getMemory() {
@@ -180,14 +232,6 @@ public class AsyncServer {
         return replicaPort;
     }
 
-    public static void main(String[] args) {
-        try {
-            AsyncServer.create("127.0.0.1", 6379, null, 0, "", "");
-        } catch (IOException e) {
-            Logger.getLogger(AsyncServer.class.getName()).log(Level.SEVERE, "Failed to start server", e);
-        }
-    }
-
     public List<BufferedWriter> getWriters() {
         return writers;
     }
@@ -195,6 +239,7 @@ public class AsyncServer {
     public void incrementNumAcks() {
         numacks++;
     }
+
     public Map<String, Map<Integer, Map<Integer, List<String>>>> getStreamstore() {
         return streamstore;
     }
