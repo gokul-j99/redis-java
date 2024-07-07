@@ -78,7 +78,7 @@ public class AsyncServer {
              BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))) {
 
             String response = sendPing(reader, writer);
-            if (!response.trim().equals("+PONG")) {
+            if (!"+PONG\r\n".equals(response)) {
                 throw new IOException("Failed to receive PONG from replica server. Received: " + response);
             }
 
@@ -86,9 +86,6 @@ public class AsyncServer {
             sendAdditionalReplconfCommand(reader, writer);
             sendPsyncCommand(reader, writer);
             handleReplicaCommunication(reader, writer);
-        } catch (IOException e) {
-            Logger.getLogger(AsyncServer.class.getName()).log(Level.SEVERE, "Error connecting to replica server", e);
-            throw e;
         }
     }
 
@@ -97,8 +94,7 @@ public class AsyncServer {
         writer.write(replconfCommand);
         writer.flush();
         String replconfResponse = reader.readLine();
-        Logger.getLogger(AsyncServer.class.getName()).info("REPLCONF listening-port response: " + replconfResponse);
-        if (!"+OK".equals(replconfResponse.trim())) {
+        if (!"+OK".equals(replconfResponse)) {
             throw new IOException("Failed to receive +OK response from REPLCONF command. Received: " + replconfResponse);
         }
     }
@@ -108,8 +104,7 @@ public class AsyncServer {
         writer.write(replconfCommandAdditional);
         writer.flush();
         String replconfResponseAdditional = reader.readLine();
-        Logger.getLogger(AsyncServer.class.getName()).info("REPLCONF capa response: " + replconfResponseAdditional);
-        if (!"+OK".equals(replconfResponseAdditional.trim())) {
+        if (!"+OK".equals(replconfResponseAdditional)) {
             throw new IOException("Failed to receive +OK response from additional REPLCONF command. Received: " + replconfResponseAdditional);
         }
     }
@@ -124,10 +119,9 @@ public class AsyncServer {
     private String sendPing(BufferedReader reader, BufferedWriter writer) throws IOException {
         writer.write("*1\r\n$4\r\nPING\r\n");
         writer.flush();
-        String response = reader.readLine();
-        Logger.getLogger(AsyncServer.class.getName()).info("PING response: " + response);
-        return response;
+        return reader.readLine();
     }
+
 
     private void handleReplicaCommunication(BufferedReader reader, BufferedWriter writer) throws IOException {
         while (true) {
