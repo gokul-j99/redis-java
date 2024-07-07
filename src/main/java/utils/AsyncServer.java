@@ -250,21 +250,46 @@ public class AsyncServer {
                     type = dis.readByte(); // Read the actual type of the next object
                 }
 
-                if (type == (byte) 0x00) { // String key-value pair
-                    String key = readString(dis);
-                    String value = readString(dis);
-                    memory.put(key, value);
-                    if (expireTime > 0) {
-                        expiration.put(key, expireTime);
-                    }
-                } else {
-                    throw new IOException("Unsupported RDB entry type: " + type);
+                switch (type) {
+                    case (byte) 0x00: // String key-value pair
+                        String key = readString(dis);
+                        String value = readString(dis);
+                        memory.put(key, value);
+                        if (expireTime > 0) {
+                            expiration.put(key, expireTime);
+                        }
+                        break;
+                    case (byte) 0x01: // List of strings
+                        // Implement parsing for list of strings if needed
+                        break;
+                    case (byte) 0x02: // Set of strings
+                        // Implement parsing for set of strings if needed
+                        break;
+                    case (byte) 0x03: // Sorted set
+                        // Implement parsing for sorted set if needed
+                        break;
+                    case (byte) 0x04: // Hash table
+                        // Implement parsing for hash table if needed
+                        break;
+                    default: // Unsupported or unknown type
+                        skipObject(dis);
+                        break;
                 }
             }
         }
         this.memory.putAll(memory);
         this.expiration.putAll(expiration);
         return memory;
+    }
+
+    private void skipObject(DataInputStream dis) throws IOException {
+        // Skip length-prefixed object data
+        int length = readLength(dis);
+        if (length >= 0) {
+            dis.skipBytes(length);
+        } else {
+            throw new IOException("Invalid length encoding in RDB file");
+        }
     }
 
     private String readString(DataInputStream dis) throws IOException {
@@ -293,6 +318,7 @@ public class AsyncServer {
         }
         return length;
     }
+
 
     public Map<String, String> getMemory() {
         return memory;
