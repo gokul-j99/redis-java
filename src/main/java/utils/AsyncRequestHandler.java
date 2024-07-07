@@ -80,12 +80,13 @@ public class AsyncRequestHandler implements Runnable {
         }
     }
 
-    public void handleRequest(byte[] request) throws Exception {
+    private void handleRequest(byte[] request) throws Exception {
         List<List<String>> commandList = EncodingUtils.parseRedisProtocol(request);
         List<Integer> lengths = EncodingUtils.getCommandLengths(request);
 
         if (commandList.isEmpty()) {
             Logger.getLogger(AsyncRequestHandler.class.getName()).info("Received invalid data");
+            System.out.println("Received invalid data");
             return;
         }
 

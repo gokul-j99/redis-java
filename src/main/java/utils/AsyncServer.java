@@ -184,8 +184,10 @@ public class AsyncServer {
         try {
             Path filePath = Paths.get(config.get("dir"), config.get("dbfilename"));
             Map<String, String> hashMap = parseRedisFile(filePath);
+
             return new ArrayList<>(hashMap.keySet());
         } catch (IOException e) {
+            System.out.println("Error reading keys from file");
             Logger.getLogger(AsyncServer.class.getName()).log(Level.SEVERE, "Error reading keys from file", e);
             return Collections.emptyList();
         }
@@ -201,9 +203,83 @@ public class AsyncServer {
     }
 
     private Map<String, String> parseRedisFile(Path filePath) throws IOException {
-        // Implement the parse_redis_file method to read the Redis RDB file and populate the memory and expiration maps
-        // This is a placeholder method
-        return new HashMap<>();
+        Map<String, String> memory = new HashMap<>();
+        Map<String, Long> expiration = new HashMap<>();
+
+        try (DataInputStream dis = new DataInputStream(new BufferedInputStream(Files.newInputStream(filePath)))) {
+            // Read the magic string and version
+            byte[] magic = new byte[5];
+            dis.readFully(magic);
+            String magicString = new String(magic);
+            if (!"REDIS".equals(magicString)) {
+                throw new IOException("Invalid RDB file format");
+            }
+
+            // Read the version
+            byte[] versionBytes = new byte[4];
+            dis.readFully(versionBytes);
+            int version = Integer.parseInt(new String(versionBytes));
+            if (version < 1 || version > 9) {
+                throw new IOException("Unsupported RDB file version: " + version);
+            }
+
+            while (true) {
+                int type = dis.readByte();
+                if (type == (byte) 0xFF) { // End of file marker
+                    break;
+                }
+
+                long expireTime = -1;
+                if (type == (byte) 0xFD) { // Millisecond precision expire time
+                    expireTime = dis.readLong();
+                    type = dis.readByte(); // Read the actual type of the next object
+                } else if (type == (byte) 0xFC) { // Second precision expire time
+                    expireTime = dis.readInt() * 1000L;
+                    type = dis.readByte(); // Read the actual type of the next object
+                }
+
+                if (type == (byte) 0x00) { // String key-value pair
+                    String key = readString(dis);
+                    String value = readString(dis);
+                    memory.put(key, value);
+                    if (expireTime > 0) {
+                        expiration.put(key, expireTime);
+                    }
+                } else {
+                    throw new IOException("Unsupported RDB entry type: " + type);
+                }
+            }
+        }
+        this.memory.putAll(memory);
+        this.expiration.putAll(expiration);
+        return memory;
+    }
+
+    private String readString(DataInputStream dis) throws IOException {
+        int length = readLength(dis);
+        byte[] bytes = new byte[length];
+        dis.readFully(bytes);
+        return new String(bytes);
+    }
+
+    private int readLength(DataInputStream dis) throws IOException {
+        int length = dis.readByte() & 0xFF;
+        if (length >= 0xC0) {
+            switch (length) {
+                case 0xC0:
+                case 0xC1:
+                    throw new IOException("Invalid length encoding in RDB file");
+                case 0xC2:
+                    length = ((length & 0x3F) << 8) | (dis.readByte() & 0xFF);
+                    break;
+                case 0xC3:
+                    length = dis.readInt();
+                    break;
+                default:
+                    throw new IOException("Unsupported length encoding in RDB file");
+            }
+        }
+        return length;
     }
 
     public Map<String, String> getMemory() {
@@ -220,14 +296,6 @@ public class AsyncServer {
 
     public int getReplicaPort() {
         return replicaPort;
-    }
-
-    public static void main(String[] args) {
-        try {
-            AsyncServer.create("127.0.0.1", 6379, null, 0, "", "");
-        } catch (IOException e) {
-            Logger.getLogger(AsyncServer.class.getName()).log(Level.SEVERE, "Failed to start server", e);
-        }
     }
 
     public List<BufferedWriter> getWriters() {
