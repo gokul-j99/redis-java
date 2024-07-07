@@ -2,6 +2,7 @@ package commands;
 
 import utils.AsyncRequestHandler;
 
+import java.io.OutputStream;
 import java.util.List;
 
 public class PSyncCommand extends RedisCommand {
@@ -21,9 +22,10 @@ public class PSyncCommand extends RedisCommand {
         handler.getWriter().write(header);
         handler.getWriter().flush();  // Flush character data
 
-        // Write binary data directly
-        handler.getWriter().write(new String(binaryData, "ISO-8859-1"));
-        handler.getWriter().flush();  // Flush binary data
+        // Write binary data directly using OutputStream
+        OutputStream outputStream = handler.getOutputStream();
+        outputStream.write(binaryData);
+        outputStream.flush();  // Flush binary data
 
         handler.server.numacks += 1;
 
