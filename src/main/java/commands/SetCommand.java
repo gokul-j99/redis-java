@@ -18,6 +18,8 @@ public class SetCommand extends RedisCommand {
             handler.expiration.put(command.get(1), null);
         }
         handler.server.numacks = 0;
+        System.out.println("writing CMD " + "Before encode" + " to writer: ");
+        System.out.println("writing CMD " + "Before encode" + " to writer: ");
         byte[] encodedCommand = EncodingUtils.encodeRedisProtocol(command);
         String commandString = new String(encodedCommand, StandardCharsets.UTF_8);
         System.out.println("writing CMD " + "Before command" + " to writer: ");
