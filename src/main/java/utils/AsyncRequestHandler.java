@@ -108,7 +108,7 @@ public class AsyncRequestHandler implements Runnable {
                 response = new UnknownCommand().execute(this, cmd);
             }
 
-            if (replicaServer != null && socket.getPort() == replicaPort) {
+            if (replicaServer != null && socket != null && socket.getPort() == replicaPort) {
                 if (response.startsWith("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK")) {
                     writer.write(response);
                     writer.flush();

@@ -20,10 +20,10 @@ public class AsyncServer {
     public final List<BufferedWriter> writers;
     public int numacks;
     public final Map<String, String> config;
+    public final Map<String, RedisCommand> commandMap;
 
     private ServerSocket serverSocket;
     private ExecutorService executor;
-    public final Map<String, RedisCommand> commandMap;
 
     public AsyncServer(String host, int port, String replicaServer, int replicaPort, String dir, String dbfilename) throws IOException {
         this.host = host;
