@@ -130,7 +130,7 @@ public class AsyncServer {
     }
 
     private void processMasterCommand(String commandLine, BufferedReader reader) throws Exception {
-        System.out.println("Received command from master: " + commandLine);
+        System.out.println("Received command from master un encode: " + commandLine);
         List<List<String>> commandList = EncodingUtils.parseRedisProtocol(commandLine.getBytes(StandardCharsets.UTF_8));
         for (List<String> command : commandList) {
             System.out.println("Processing command from master: " + command);
