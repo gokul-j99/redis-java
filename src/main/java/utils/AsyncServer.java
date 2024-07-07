@@ -119,17 +119,26 @@ public class AsyncServer {
                     char[] buffer = new char[length];
                     reader.read(buffer, 0, length);
                     String rdbData = new String(buffer);
-                    // Process RDB data as needed
                     processRDBData(rdbData);
                 } else {
                     processMasterCommand(line, reader);
                 }
             }
-
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
+
+    private void processMasterCommand(String commandLine, BufferedReader reader) throws Exception {
+        System.out.println("Received command from master: " + commandLine);
+        List<List<String>> commandList = EncodingUtils.parseRedisProtocol(commandLine.getBytes(StandardCharsets.UTF_8));
+        for (List<String> command : commandList) {
+            System.out.println("Processing command from master: " + command);
+            RedisCommand commandClass = commandMap.getOrDefault(command.get(0).toUpperCase(), new UnknownCommand());
+            commandClass.execute(new AsyncRequestHandler(null, this), command);
+        }
+    }
+
 
     private void processRDBData(String rdbData) throws IOException {
         // Create a temporary file to store the RDB data
@@ -141,13 +150,6 @@ public class AsyncServer {
         Files.delete(tempFile);
     }
 
-    private void processMasterCommand(String commandLine, BufferedReader reader) throws Exception {
-        List<List<String>> commandList = EncodingUtils.parseRedisProtocol(commandLine.getBytes(StandardCharsets.UTF_8));
-        for (List<String> command : commandList) {
-            RedisCommand commandClass = commandMap.getOrDefault(command.get(0).toUpperCase(), new UnknownCommand());
-            commandClass.execute(new AsyncRequestHandler(null, this), command);
-        }
-    }
 
     private void sendReplconfCommand(BufferedReader reader, BufferedWriter writer, int port) throws IOException {
         String replconfCommand = "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n" + port + "\r\n";
