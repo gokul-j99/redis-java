@@ -4,19 +4,18 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.logging.*;
-
+import java.util.concurrent.BlockingQueue;
+import java.util.logging.Logger;
 import commands.*;
 
 public class AsyncRequestHandler implements Runnable {
     private final Socket socket;
     public final AsyncServer server;
     public final BufferedReader reader;
-    public static BufferedWriter writer = null;
+    public final BufferedWriter writer;
     public final Map<String, String> memory;
     public final Map<String, Long> expiration;
-    public final String replicaServer;  // Correct type
+    public final String replicaServer;
     public final int replicaPort;
     public int offset = 0;
     public BlockingQueue<List<String>> commandQueue = null;
@@ -30,7 +29,7 @@ public class AsyncRequestHandler implements Runnable {
         this.writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
         this.memory = server.getMemory();
         this.expiration = server.getExpiration();
-        this.replicaServer = server.getReplicaServer();  // Correct type
+        this.replicaServer = server.getReplicaServer();
         this.replicaPort = server.getReplicaPort();
 
         // Initialize commandMap with command instances
@@ -60,7 +59,7 @@ public class AsyncRequestHandler implements Runnable {
         try {
             processRequest();
         } catch (IOException e) {
-            Logger.getLogger(AsyncRequestHandler.class.getName()).log(Level.SEVERE, null, e);
+            Logger.getLogger(AsyncRequestHandler.class.getName()).log(java.util.logging.Level.SEVERE, null, e);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -135,6 +134,4 @@ public class AsyncRequestHandler implements Runnable {
     public Integer getOffset() {
         return offset;
     }
-
-    // Define EncodingUtils and RedisCommand classes/interfaces as needed
 }
