@@ -120,6 +120,7 @@ public class AsyncServer {
                     reader.read(buffer, 0, length);
                     String rdbData = new String(buffer);
                     // Process RDB data as needed
+                    processRDBData(rdbData);
                 } else {
                     processMasterCommand(line, reader);
                 }
@@ -127,6 +128,16 @@ public class AsyncServer {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void processRDBData(String rdbData) throws IOException {
+        // Create a temporary file to store the RDB data
+        Path tempFile = Files.createTempFile("redis", ".rdb");
+        try (BufferedWriter writer = Files.newBufferedWriter(tempFile, StandardCharsets.UTF_8)) {
+            writer.write(rdbData);
+        }
+        parseRedisFile(tempFile);
+        Files.delete(tempFile);
     }
 
     private void processMasterCommand(String commandLine, BufferedReader reader) throws Exception {
