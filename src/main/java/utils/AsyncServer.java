@@ -111,6 +111,7 @@ public class AsyncServer {
 
             while (true) {
                 String line = reader.readLine();
+                System.out.println("Received input: " + line);
                 if (line == null) {
                     break;
                 }
