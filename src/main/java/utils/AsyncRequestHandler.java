@@ -75,6 +75,7 @@ public class AsyncRequestHandler implements Runnable {
                 break;
             }
             String request = new String(buffer, 0, read);
+            System.out.println(request);
             Logger.getLogger(AsyncRequestHandler.class.getName()).info("Request: " + request);
             handleRequest(request.getBytes(StandardCharsets.UTF_8));
         }
@@ -142,5 +143,5 @@ public class AsyncRequestHandler implements Runnable {
         return offset;
     }
 
-    // Define EncodingUtils and RedisCommand classes/interfaces as needed
+
 }
