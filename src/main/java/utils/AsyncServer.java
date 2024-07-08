@@ -111,14 +111,18 @@ public class AsyncServer {
 
             while (true) {
                 String line = reader.readLine();
-                System.out.println("Received input: " + line);
                 if (line == null) {
                     break;
                 }
+                System.out.println("Received input: " + line);
                 if (line.startsWith("$")) {
                     int length = Integer.parseInt(line.substring(1));
                     char[] buffer = new char[length];
-                    reader.read(buffer, 0, length);
+                    int bytesRead = reader.read(buffer, 0, length);
+                    if (bytesRead < length) {
+                        System.out.println("Reached end of RDB file unexpectedly");
+                        break;
+                    }
                     String rdbData = new String(buffer);
                     processRDBData(rdbData);
                 } else {
@@ -132,11 +136,16 @@ public class AsyncServer {
 
     private void processMasterCommand(String commandLine, BufferedReader reader) throws Exception {
         System.out.println("Received command from master: " + commandLine);
-        List<List<String>> commandList = EncodingUtils.parseRedisProtocol(commandLine.getBytes(StandardCharsets.UTF_8));
-        for (List<String> command : commandList) {
-            System.out.println("Processing command from master: " + command);
-            RedisCommand commandClass = commandMap.getOrDefault(command.get(0).toUpperCase(), new UnknownCommand());
-            commandClass.execute(new AsyncRequestHandler(null, this), command);
+        try {
+            List<List<String>> commandList = EncodingUtils.parseRedisProtocol(commandLine.getBytes(StandardCharsets.UTF_8));
+            for (List<String> command : commandList) {
+                System.out.println("Processing command from master: " + command);
+                RedisCommand commandClass = commandMap.getOrDefault(command.get(0).toUpperCase(), new UnknownCommand());
+                commandClass.execute(new AsyncRequestHandler(null, this), command);
+            }
+        } catch (Exception e) {
+            System.err.println("Error processing command from master: " + commandLine);
+            e.printStackTrace();
         }
     }
 
@@ -145,6 +154,7 @@ public class AsyncServer {
     private void processRDBData(String rdbData) throws IOException {
         // Create a temporary file to store the RDB data
         Path tempFile = Files.createTempFile("redis", ".rdb");
+        System.out.println(rdbData);
         try (BufferedWriter writer = Files.newBufferedWriter(tempFile, StandardCharsets.UTF_8)) {
             writer.write(rdbData);
         }
