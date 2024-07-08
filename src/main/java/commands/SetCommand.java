@@ -30,7 +30,7 @@ public class SetCommand extends RedisCommand {
             }
             return "+OK\r\n";
         } else {
-            return null; // No response for commands from the master
+            return null;
         }
     }
 }

@@ -78,7 +78,7 @@ public class AsyncRequestHandler implements Runnable {
             System.out.println(request);
             Logger.getLogger(AsyncRequestHandler.class.getName()).info("Request: " + request);
             handleRequest(request.getBytes(StandardCharsets.UTF_8));
-            
+
         }
     }
 
