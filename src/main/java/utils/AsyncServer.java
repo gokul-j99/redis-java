@@ -109,11 +109,8 @@ public class AsyncServer {
             sendAdditionalReplconfCommand(reader, writer);
             sendPsyncCommand(reader, writer);
 
-            while (true) {
-                String line = reader.readLine();
-                if (line == null) {
-                    break;
-                }
+            String line;
+            while ((line = reader.readLine()) != null) {
                 System.out.println("Received input: " + line);
                 if (line.startsWith("$")) {
                     int length = Integer.parseInt(line.substring(1));
@@ -146,12 +143,9 @@ public class AsyncServer {
         for (List<String> command : commandList) {
             System.out.println("Processing command from master: " + command);
             RedisCommand commandClass = commandMap.getOrDefault(command.get(0).toUpperCase(), new UnknownCommand());
-            commandClass.execute(new AsyncRequestHandler(null, this), command);
+            commandClass.execute(new AsyncRequestHandler(null, this, true), command);
         }
     }
-
-
-
 
     private void sendReplconfCommand(BufferedReader reader, BufferedWriter writer, int port) throws IOException {
         String replconfCommand = "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n" + port + "\r\n";
@@ -217,6 +211,7 @@ public class AsyncServer {
         }
         return encodedData.toString();
     }
+
     private Map<String, String> parseRedisFile(Path filePath) throws IOException {
         Map<String, String> memory = new HashMap<>();
         Map<String, Long> expiration = new HashMap<>();
@@ -334,7 +329,6 @@ public class AsyncServer {
         }
         return length;
     }
-
 
     public Map<String, String> getMemory() {
         return memory;

@@ -23,10 +23,9 @@ public class SetCommand extends RedisCommand {
         byte[] encodedCommand = EncodingUtils.encodeRedisProtocol(command);
         String commandString = new String(encodedCommand, StandardCharsets.UTF_8);
 
-        if (handler.socket != null && handler.socket.getPort() != handler.replicaPort) {
+        if (!handler.isFromMaster()) {
             for (BufferedWriter writer : handler.server.getWriters()) {
                 writer.write(commandString);
-                
                 writer.flush();
             }
             return "+OK\r\n";

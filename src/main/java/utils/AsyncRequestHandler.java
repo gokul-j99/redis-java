@@ -22,10 +22,16 @@ public class AsyncRequestHandler implements Runnable {
     public BlockingQueue<List<String>> commandQueue = null;
 
     public final Map<String, RedisCommand> commandMap = new HashMap<>();
+    private final boolean isFromMaster;
 
     public AsyncRequestHandler(Socket socket, AsyncServer server) throws IOException {
+        this(socket, server, false);
+    }
+
+    public AsyncRequestHandler(Socket socket, AsyncServer server, boolean isFromMaster) throws IOException {
         this.socket = socket;
         this.server = server;
+        this.isFromMaster = isFromMaster;
         this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
         this.writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
         this.outputStream = socket.getOutputStream();
@@ -78,7 +84,6 @@ public class AsyncRequestHandler implements Runnable {
             System.out.println(request);
             Logger.getLogger(AsyncRequestHandler.class.getName()).info("Request: " + request);
             handleRequest(request.getBytes(StandardCharsets.UTF_8));
-
         }
     }
 
@@ -111,13 +116,7 @@ public class AsyncRequestHandler implements Runnable {
                 response = new UnknownCommand().execute(this, cmd);
             }
 
-            if (replicaServer != null && socket != null && socket.getPort() == replicaPort) {
-                if (response.startsWith("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK")) {
-                    writer.write(response);
-                    writer.flush();
-                }
-                offset += lengths.get(i);
-            } else {
+            if (!isFromMaster) {
                 if (response != null) {
                     System.out.println("sending response: " + response + " to " + socket.getRemoteSocketAddress() + " command: " + cmd);
                     writer.write(response);
@@ -144,5 +143,7 @@ public class AsyncRequestHandler implements Runnable {
         return offset;
     }
 
-
+    public boolean isFromMaster() {
+        return isFromMaster;
+    }
 }

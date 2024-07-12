@@ -7,11 +7,14 @@ public class GetCommand extends RedisCommand {
     @Override
     public String execute(AsyncRequestHandler handler, List<String> command) {
         String key = command.get(1);
+
+        // Check if the key has expired
         if (handler.expiration.containsKey(key) && handler.expiration.get(key) < System.currentTimeMillis() / 1000) {
             handler.memory.remove(key);
             handler.expiration.remove(key);
         }
 
+        // Retrieve the value associated with the key
         String value = handler.memory.get(key);
         if (value == null) {
             System.out.println("Key '" + key + "' not found..");
