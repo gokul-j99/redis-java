@@ -26,6 +26,7 @@ public class SetCommand extends RedisCommand {
         if (handler.socket != null && handler.socket.getPort() != handler.replicaPort) {
             for (BufferedWriter writer : handler.server.getWriters()) {
                 writer.write(commandString);
+                
                 writer.flush();
             }
             return "+OK\r\n";
